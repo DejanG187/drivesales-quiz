@@ -19,12 +19,13 @@ scope = [
     "https://www.googleapis.com/auth/drive"
 ]
 
+import json
 import streamlit as st
 from google.oauth2.service_account import Credentials
 
-creds = Credentials.from_service_account_info(
-    st.secrets["gcp_service_account"]
-)
+service_account_info = json.loads(st.secrets["gcp_service_account"])
+
+creds = Credentials.from_service_account_info(service_account_info)
 
 client = gspread.authorize(creds)
 
