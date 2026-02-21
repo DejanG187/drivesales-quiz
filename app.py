@@ -6,7 +6,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 # CONFIG
-SHEET_ID = "1zDAsJD4uxw01eItCZ6Jeu6PjcQLQJHHkPczFFFnID7A"
+SHEET_ID = "17d74486d9a9dd0afed7bccfb141596753bcdec0"
 QUESTIONS_TAB = "questions"
 RESULTS_TAB = "results"
 ALLOWED_DOMAIN = "@drivesales.com"
