@@ -1,3 +1,6 @@
+st.write("Loaded secrets OK")
+st.write(st.secrets["gcp_service_account"]["client_email"])
+
 import streamlit as st
 import pandas as pd
 import random
