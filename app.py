@@ -1,12 +1,14 @@
-st.write("Loaded secrets OK")
-st.write(st.secrets["gcp_service_account"]["client_email"])
-
 import streamlit as st
 import pandas as pd
 import random
 from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
+
+st.write("Loaded secrets OK")
+st.write(st.secrets["gcp_service_account"]["client_email"])
+
+
 
 # CONFIG
 SHEET_ID = "1zDAsJD4uxw01eItCZ6Jeu6PjcQLQJHHkPczFFFnID7A"
