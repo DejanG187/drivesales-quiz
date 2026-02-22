@@ -51,10 +51,23 @@ def format_username(email):
 def load_questions(limit=20):
     sheet = client.open_by_key(SHEET_ID).worksheet(QUESTIONS_TAB)
     all_rows = sheet.get_all_records()
-    # Filter out empty rows (rows without a question)
-    filtered_rows = [row for row in all_rows if row.get("question")]
-    # Take only the first `limit` rows
-    return pd.DataFrame(filtered_rows[:limit])
+
+    filtered_rows = []
+    for row in all_rows[:limit]:
+        # Only keep rows with a non-empty question
+        if not row.get("question"):
+            continue
+        # Keep only rows where at least one option is not empty
+        options = [row.get(opt) for opt in ["A","B","C","D"]]
+        if any(opt for opt in options if str(opt).strip()):
+            # Convert all options to strings to avoid None
+            row["A"] = str(row.get("A", "")).strip()
+            row["B"] = str(row.get("B", "")).strip()
+            row["C"] = str(row.get("C", "")).strip()
+            row["D"] = str(row.get("D", "")).strip()
+            filtered_rows.append(row)
+
+    return pd.DataFrame(filtered_rows)
 
 @st.cache_data(ttl=30)
 def load_results():
