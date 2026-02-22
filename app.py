@@ -145,11 +145,11 @@ if st.session_state.quiz_started:
             ].tolist()[0] + 1
 
             st.info(f"Your current rank: #{rank}")   
-    st.session_state.quiz_started = False
+st.session_state.quiz_started = False
 
-    if st.button("Back to Leaderboard"):
-        st.session_state.show_results = False
-        st.rerun()
+if st.button("Back to Leaderboard"):
+    st.session_state.show_results = False
+    st.rerun()
 # LEADERBOARD
 st.header("Leaderboard")
 
