@@ -243,7 +243,6 @@ if st.session_state.quiz_started:
         # Optional small delay feeling
         st.balloons()
 
-        st.experimental_rerun()
 
 # ------------------- LEADERBOARD -------------------
 if st.session_state.view_leaderboard or not st.session_state.quiz_started:
