@@ -34,7 +34,6 @@ questions_sheet = client.open_by_key(SHEET_ID).worksheet(QUESTIONS_TAB)
 results_sheet = client.open_by_key(SHEET_ID).worksheet(RESULTS_TAB)
 
 questions_data = pd.DataFrame(questions_sheet.get_all_records())
-results_data = pd.DataFrame(results_sheet.get_all_records())
 
 # TITLE
 st.title("DriveSales Daily Quiz")
@@ -145,12 +144,12 @@ if st.session_state.quiz_started:
             ].tolist()[0] + 1
 
             st.info(f"Your current rank: #{rank}")   
-st.session_state.quiz_started = False
-
-if st.button("Back to Leaderboard"):
-    st.session_state.show_results = False
-    st.rerun()
+    if st.session_state.quiz_started:
+        if st.button("Finish Quiz"):
+            st.session_state.quiz_started = False
+            st.rerun()
 # LEADERBOARD
+results_data = pd.DataFrame(results_sheet.get_all_records())
 st.header("Leaderboard")
 
 if not results_data.empty:
