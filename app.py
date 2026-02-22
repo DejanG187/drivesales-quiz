@@ -170,3 +170,5 @@ if not results_data.empty:
     leaderboard["avg_score"] = leaderboard["avg_score"].round(2)
 
     st.dataframe(leaderboard)
+
+#Works properly after adding new user and updates leaderboard 
