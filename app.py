@@ -48,22 +48,26 @@ if email and not email.endswith(ALLOWED_DOMAIN):
 # CHECK ATTEMPTS TODAY
 today = datetime.now().strftime("%Y-%m-%d")
 
-if not results_data.empty and email:
+if email:
 
-    results_data["date_only"] = results_data["date"].str[:10]
+    results_data = pd.DataFrame(results_sheet.get_all_records())
 
-    attempts_today = len(
-        results_data[
-            (results_data["email"] == email)
-            & (results_data["date_only"] == today)
-        ]
-    )
+    if not results_data.empty:
 
-    if attempts_today >= MAX_ATTEMPTS_PER_DAY:
-        st.error("You reached max 3 attempts today")
-        st.stop()
+        results_data["date_only"] = results_data["date"].str[:10]
 
-    st.info(f"Attempts today: {attempts_today}/3")
+        attempts_today = len(
+            results_data[
+                (results_data["email"] == email)
+                & (results_data["date_only"] == today)
+            ]
+        )
+
+        if attempts_today >= MAX_ATTEMPTS_PER_DAY:
+            st.error("You reached max 3 attempts today")
+            st.stop()
+
+        st.info(f"Attempts today: {attempts_today}/3")
 
 # START QUIZ
 if "quiz_started" not in st.session_state:
