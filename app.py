@@ -175,23 +175,23 @@ if not results_data.empty:
     st.dataframe(leaderboard[["username", "avg_score", "quizzes", "best_score"]])
 
         # ---------- ATTEMPTS LEFT ----------
-        attempts_today = len(
-            results_data[
-                (results_data["email"] == email)
-                & (results_data["date"].astype(str).str[:10] == today)
-            ]
-        )
-        remaining_attempts = MAX_ATTEMPTS_PER_DAY - attempts_today
-        if remaining_attempts > 0:
-            st.info(f"You have {remaining_attempts} attempt(s) left today.")
-        else:
-            st.info("You reached the maximum attempts for today. Come back tomorrow!")
+    attempts_today = len(
+        results_data[
+            (results_data["email"] == email)
+            & (results_data["date"].astype(str).str[:10] == today)
+        ]
+    )
+    remaining_attempts = MAX_ATTEMPTS_PER_DAY - attempts_today
+    if remaining_attempts > 0:
+        st.info(f"You have {remaining_attempts} attempt(s) left today.")
+    else:
+        st.info("You reached the maximum attempts for today. Come back tomorrow!")
 
-        # ---------- RESET QUIZ STATE ----------
+    # ---------- RESET QUIZ STATE ----------
+    st.session_state.quiz_started = False
+    st.balloons()
+
+    # ---------- OPTIONAL START NEW QUIZ BUTTON ----------
+    if remaining_attempts > 0 and st.button("Start New Quiz"):
         st.session_state.quiz_started = False
-        st.balloons()
-
-        # ---------- OPTIONAL START NEW QUIZ BUTTON ----------
-        if remaining_attempts > 0 and st.button("Start New Quiz"):
-            st.session_state.quiz_started = False
-            st.rerun()
+        st.rerun()
