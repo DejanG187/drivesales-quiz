@@ -47,25 +47,25 @@ if email and not email.endswith(ALLOWED_DOMAIN):
     st.stop()
 
 # CHECK ATTEMPTS TODAY
+
 today = datetime.now().strftime("%Y-%m-%d")
 
-if email:
-    if not results_data.empty:
+if email and not results_data.empty and "date" in results_data.columns:
+    
+    results_data["date_only"] = results_data["date"].astype(str).str[:10]
 
-        results_data["date_only"] = results_data["date"].str[:10]
+    attempts_today = len(
+        results_data[
+            (results_data["email"] == email)
+            & (results_data["date_only"] == today)
+        ]
+    )
 
-        attempts_today = len(
-            results_data[
-                (results_data["email"] == email)
-                & (results_data["date_only"] == today)
-            ]
-        )
+    if attempts_today >= MAX_ATTEMPTS_PER_DAY:
+        st.error("You reached max 3 attempts today")
+        st.stop()
 
-        if attempts_today >= MAX_ATTEMPTS_PER_DAY:
-            st.error("You reached max 3 attempts today")
-            st.stop()
-
-        st.info(f"Attempts today: {attempts_today}/3")
+    st.info(f"Attempts today: {attempts_today}/3")
 
 # START QUIZ
 if "quiz_started" not in st.session_state:
