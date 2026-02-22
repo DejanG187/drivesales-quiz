@@ -50,8 +50,6 @@ today = datetime.now().strftime("%Y-%m-%d")
 
 if email:
 
-    results_data = pd.DataFrame(results_sheet.get_all_records())
-
     if not results_data.empty:
 
         results_data["date_only"] = results_data["date"].str[:10]
