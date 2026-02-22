@@ -131,8 +131,22 @@ if st.session_state.quiz_started:
             ])
             
             st.success(f"Score: {score}/{total} ({percentage}%)")
-            st.session_state.quiz_started = False
-            st.rerun()
+        updated_results = pd.DataFrame(results_sheet.get_all_records())
+
+        leaderboard_live = (
+            updated_results.groupby("email")
+            .agg(avg_score=("percentage", "mean"))
+            .sort_values("avg_score", ascending=False)
+            .reset_index()
+    )
+
+        rank = leaderboard_live.index[
+            leaderboard_live["email"] == email
+        ].tolist()[0] + 1
+
+        st.info(f"Your current rank: #{rank}")   
+        st.session_state.quiz_started = False
+        st.rerun()
 # LEADERBOARD
 st.header("Leaderboard")
 
