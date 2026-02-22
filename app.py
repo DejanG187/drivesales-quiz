@@ -34,6 +34,7 @@ questions_sheet = client.open_by_key(SHEET_ID).worksheet(QUESTIONS_TAB)
 results_sheet = client.open_by_key(SHEET_ID).worksheet(RESULTS_TAB)
 
 questions_data = pd.DataFrame(questions_sheet.get_all_records())
+results_data = pd.DataFrame(results_sheet.get_all_records())
 
 # TITLE
 st.title("DriveSales Daily Quiz")
@@ -49,7 +50,6 @@ if email and not email.endswith(ALLOWED_DOMAIN):
 today = datetime.now().strftime("%Y-%m-%d")
 
 if email:
-
     if not results_data.empty:
 
         results_data["date_only"] = results_data["date"].str[:10]
