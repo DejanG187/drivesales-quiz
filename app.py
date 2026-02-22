@@ -26,7 +26,7 @@ results_sheet = client.open_by_key(SHEET_ID).worksheet(RESULTS_TAB)
 
 # ---------------- HELPERS ----------------
 def format_username(email):
-    """Format email to a friendly username."""
+    """Convert email to friendly username."""
     local = email.split("@")[0]
     if "." in local:
         parts = local.split(".")
@@ -42,7 +42,6 @@ def load_questions(limit=500):
     sheet = client.open_by_key(SHEET_ID).worksheet(QUESTIONS_TAB)
     all_rows = sheet.get_all_records()
     filtered_rows = []
-
     for row in all_rows[:limit]:
         if not row.get("question"):
             continue
@@ -66,13 +65,14 @@ results_data = load_results()
 # ---------------- SESSION STATE ----------------
 if "quiz_started" not in st.session_state:
     st.session_state.quiz_started = False
+if "quiz" not in st.session_state:
+    st.session_state.quiz = None
 
 # ---------------- TITLE ----------------
 st.title("DriveSales Daily Quiz")
 
 # ---------------- LOGIN ----------------
 email = st.text_input("Enter company email")
-
 if email and not email.endswith(ALLOWED_DOMAIN):
     st.error("Only @drivesales.com emails allowed")
     st.stop()
@@ -105,7 +105,7 @@ if email and not st.session_state.quiz_started:
         st.session_state.quiz_started = True
 
 # ---------------- QUIZ FORM ----------------
-if st.session_state.quiz_started:
+if st.session_state.quiz_started and st.session_state.quiz is not None:
     total = len(st.session_state.quiz)
     st.subheader("Quiz In Progress")
     user_answers = []
@@ -123,17 +123,16 @@ if st.session_state.quiz_started:
         )
         user_answers.append(selected)
 
-    # Progress
     answered = sum(1 for ans in user_answers if len(ans) > 0)
     st.progress(answered / total)
     st.write(f"Answered {answered} of {total} questions")
 
-    # Submit
     all_answered = answered == total
     submit = st.button("Submit Quiz", disabled=not all_answered)
     if not all_answered:
         st.warning("Please answer all questions before submitting.")
 
+    # ---------------- SUBMIT QUIZ ----------------
     if submit:
         score = 0
         for i, row in st.session_state.quiz.iterrows():
@@ -152,10 +151,12 @@ if st.session_state.quiz_started:
         ])
         st.success(f"Final Score: {score}/{total} ({percentage}%)")
 
+        # Reset quiz state only after submission
         st.session_state.quiz_started = False
+        st.session_state.quiz = None
         st.balloons()
 
-# ---------------- LEADERBOARD (always visible) ----------------
+# ---------------- LEADERBOARD ----------------
 st.subheader("Leaderboard")
 results_data = load_results()
 if not results_data.empty:
@@ -171,10 +172,10 @@ if not results_data.empty:
     )
     leaderboard["avg_score"] = leaderboard["avg_score"].round(2)
     leaderboard["username"] = leaderboard["email"].apply(format_username)
-
     st.dataframe(leaderboard[["username", "avg_score", "quizzes", "best_score"]])
 
-        # ---------- ATTEMPTS LEFT ----------
+# ---------------- ATTEMPTS LEFT & NEW QUIZ ----------------
+if email:
     attempts_today = len(
         results_data[
             (results_data["email"] == email)
@@ -184,14 +185,8 @@ if not results_data.empty:
     remaining_attempts = MAX_ATTEMPTS_PER_DAY - attempts_today
     if remaining_attempts > 0:
         st.info(f"You have {remaining_attempts} attempt(s) left today.")
+        if st.button("Start New Quiz"):
+            st.session_state.quiz_started = False
+            st.rerun()
     else:
         st.info("You reached the maximum attempts for today. Come back tomorrow!")
-
-    # ---------- RESET QUIZ STATE ----------
-    st.session_state.quiz_started = False
-    st.balloons()
-
-    # ---------- OPTIONAL START NEW QUIZ BUTTON ----------
-    if remaining_attempts > 0 and st.button("Start New Quiz"):
-        st.session_state.quiz_started = False
-        st.rerun()
