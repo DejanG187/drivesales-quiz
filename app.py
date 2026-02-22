@@ -183,6 +183,20 @@ if st.session_state.quiz_started:
 
         st.info(f"Your current rank: #{rank}")
 
+        # ---------- OPTIONS ----------
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.button("Try Again"):
+                st.session_state.quiz_started = False
+                st.rerun()  # resets quiz to start a new one
+
+        with col2:
+            if st.button("View Leaderboard"):
+                st.session_state.quiz_started = False
+                st.session_state.view_leaderboard = True
+                st.rerun()
+
         # Reset quiz state automatically
         st.session_state.quiz_started = False
 
