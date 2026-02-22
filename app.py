@@ -48,7 +48,7 @@ def format_username(email):
 
 # ---------- CACHED LOAD FUNCTIONS ----------
 @st.cache_data(ttl=60)
-def load_questions(limit=20):
+def load_questions(limit=500):
     sheet = client.open_by_key(SHEET_ID).worksheet(QUESTIONS_TAB)
     all_rows = sheet.get_all_records()
 
