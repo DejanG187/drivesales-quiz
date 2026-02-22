@@ -146,7 +146,9 @@ if st.session_state.quiz_started:
 
             st.info(f"Your current rank: #{rank}")   
             st.session_state.quiz_started = False
-            st.rerun()
+
+            if st.button("Back to Leaderboard"):
+                st.rerun()
 # LEADERBOARD
 st.header("Leaderboard")
 
