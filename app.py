@@ -47,6 +47,13 @@ results_data = load_results()
 # Keep results_sheet reference to append rows later
 results_sheet = client.open_by_key(SHEET_ID).worksheet(RESULTS_TAB)
 
+# ------------------- SESSION STATE -------------------
+if "quiz_started" not in st.session_state:
+    st.session_state.quiz_started = False
+
+if "view_leaderboard" not in st.session_state:
+    st.session_state.view_leaderboard = False
+
 # TITLE
 st.title("DriveSales Daily Quiz")
 
