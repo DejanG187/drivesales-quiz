@@ -83,100 +83,99 @@ if email and not st.session_state.quiz_started:
         st.session_state.quiz_started = True
 
 # QUIZ FORM
+# QUIZ SECTION (Optimized UX)
 if st.session_state.quiz_started:
 
-    score = 0
     total = len(st.session_state.quiz)
 
-    with st.form("quiz_form"):
+    st.subheader("Quiz In Progress")
 
-        user_answers = []
+    user_answers = []
 
-        progress_bar = st.progress(0)
+    # ---------- QUESTIONS ----------
+    for i, row in st.session_state.quiz.iterrows():
+
+        options = [
+            ("A", row["A"]),
+            ("B", row["B"]),
+            ("C", row["C"]),
+            ("D", row["D"])
+        ]
+
+        random.shuffle(options)
+        option_dict = dict(options)
+
+        selected = st.multiselect(
+            f"Q{i+1}: {row['question']}",
+            options=[key for key, _ in options],
+            format_func=lambda x: option_dict[x],
+            key=f"question_{i}"
+        )
+
+        user_answers.append(selected)
+
+    # ---------- PROGRESS ----------
+    answered = sum(1 for ans in user_answers if len(ans) > 0)
+    progress = answered / total
+
+    st.progress(progress)
+    st.write(f"Answered {answered} of {total} questions")
+
+    # ---------- SUBMIT BUTTON ----------
+    all_answered = answered == total
+
+    submit = st.button(
+        "Submit Quiz",
+        disabled=not all_answered
+    )
+
+    if not all_answered:
+        st.warning("Please answer all questions before submitting.")
+
+    # ---------- SCORING ----------
+    if submit:
+
+        score = 0
 
         for i, row in st.session_state.quiz.iterrows():
+            correct_answers = row["correct"].split(",")
 
-            options = [
-                ("A", row["A"]),
-                ("B", row["B"]),
-                ("C", row["C"]),
-                ("D", row["D"])
-            ]
+            if set(user_answers[i]) == set(correct_answers):
+                score += 1
 
-            random.shuffle(options)
+        percentage = round(score / total * 100, 2)
 
-            option_dict = dict(options)
+        # Save result
+        results_sheet.append_row([
+            email,
+            score,
+            total,
+            percentage,
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ])
 
-            selected = st.multiselect(
-                f"Q{i+1}: {row['question']}",
-                options=[key for key, _ in options],
-                format_func=lambda x: option_dict[x],
-                key=i
-            )
+        st.success(f"Final Score: {score}/{total} ({percentage}%)")
 
-            user_answers.append(selected)
-             # ✅ Update progress based on answered questions
-            answered = sum(1 for ans in user_answers if len(ans) > 0)
-            progress_bar.progress(answered / total)
-        submitted = st.form_submit_button("Submit")  # ✅ OUTSIDE LOOP
+        # Refresh leaderboard data ONCE
+        results_data = pd.DataFrame(results_sheet.get_all_records())
 
-        if submitted:
-
-            for i, row in st.session_state.quiz.iterrows():
-
-                correct_answers = row["correct"].split(",")
-
-                if set(user_answers[i]) == set(correct_answers):
-                    score += 1
-
-            percentage = round(score / total * 100, 2)
-
-            results_sheet.append_row([
-                email,
-                score,
-                total,
-                percentage,
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            ])
-            
-            st.success(f"Score: {score}/{total} ({percentage}%)")
-            updated_results = pd.DataFrame(results_sheet.get_all_records())
-
-            leaderboard_live = (
-            updated_results.groupby("email")
+        leaderboard_live = (
+            results_data.groupby("email")
             .agg(avg_score=("percentage", "mean"))
             .sort_values("avg_score", ascending=False)
             .reset_index()
-            )
-
-            rank = leaderboard_live.index[
-                leaderboard_live["email"] == email
-            ].tolist()[0] + 1
-
-            st.info(f"Your current rank: #{rank}")   
-    if st.session_state.quiz_started:
-        if st.button("Finish Quiz"):
-            st.session_state.quiz_started = False
-            st.rerun()
-# LEADERBOARD
-results_data = pd.DataFrame(results_sheet.get_all_records())
-st.header("Leaderboard")
-
-if not results_data.empty:
-
-    leaderboard = (
-        results_data.groupby("email")
-        .agg(
-            avg_score=("percentage", "mean"),
-            quizzes=("percentage", "count"),
-            best_score=("percentage", "max")
         )
-        .sort_values("avg_score", ascending=False)
-        .reset_index()
-    )
 
-    leaderboard["avg_score"] = leaderboard["avg_score"].round(2)
+        rank = leaderboard_live.index[
+            leaderboard_live["email"] == email
+        ].tolist()[0] + 1
 
-    st.dataframe(leaderboard)
+        st.info(f"Your current rank: #{rank}")
+
+        # Reset quiz state automatically
+        st.session_state.quiz_started = False
+
+        # Optional small delay feeling
+        st.balloons()
 
 #Works properly after adding new user and updates leaderboard 
