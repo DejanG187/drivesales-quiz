@@ -112,7 +112,7 @@ if st.session_state.quiz_started:
 
             user_answers.append(selected)
 
-        submitted = st.form_submit_button("Submit")
+            submitted = st.form_submit_button("Submit")
 
         if submitted:
 
