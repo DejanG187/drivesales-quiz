@@ -105,12 +105,12 @@ if st.session_state.quiz_started:
                 f"Q{i+1}: {row['question']}",
                 options=list(options.keys()),
                 format_func=lambda x: options[x],
-                key=i
+                key=f"question_{i}"   # also improved key
             )
 
             user_answers.append(selected)
 
-            submitted = st.form_submit_button("Submit")
+        submitted = st.form_submit_button("Submit")  # ✅ OUTSIDE LOOP
 
         if submitted:
 
