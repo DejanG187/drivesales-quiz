@@ -129,10 +129,10 @@ if st.session_state.quiz_started:
                 percentage,
                 datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             ])
+            
+            st.success(f"Score: {score}/{total} ({percentage}%)")
             st.session_state.quiz_started = False
             st.rerun()
-            st.success(f"Score: {score}/{total} ({percentage}%)")
-
 # LEADERBOARD
 st.header("Leaderboard")
 
