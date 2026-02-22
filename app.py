@@ -203,4 +203,28 @@ if st.session_state.quiz_started:
         # Optional small delay feeling
         st.balloons()
 
-#Works properly after adding new user and updates leaderboard 
+
+# ------------------- LEADERBOARD -------------------
+if st.session_state.view_leaderboard or not st.session_state.quiz_started:
+    st.header("Leaderboard")
+
+    results_data = load_results()
+    if not results_data.empty:
+        leaderboard = (
+            results_data.groupby("email")
+            .agg(
+                avg_score=("percentage", "mean"),
+                quizzes=("percentage", "count"),
+                best_score=("percentage", "max")
+            )
+            .sort_values("avg_score", ascending=False)
+            .reset_index()
+        )
+        leaderboard["avg_score"] = leaderboard["avg_score"].round(2)
+        st.dataframe(leaderboard)
+
+        # Button to go back to quiz
+        if email and st.button("Back to Quiz"):
+            st.session_state.view_leaderboard = False
+            st.session_state.quiz_started = False
+            st.rerun()
