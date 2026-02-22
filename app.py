@@ -110,7 +110,6 @@ if st.session_state.quiz_started:
     st.subheader("Quiz In Progress")
     user_answers = []
 
-    # ---------- QUESTIONS ----------
     for i, row in st.session_state.quiz.iterrows():
         options = [("A", row["A"]), ("B", row["B"]), ("C", row["C"]), ("D", row["D"])]
         random.shuffle(options)
@@ -124,18 +123,17 @@ if st.session_state.quiz_started:
         )
         user_answers.append(selected)
 
-    # ---------- PROGRESS ----------
+    # Progress
     answered = sum(1 for ans in user_answers if len(ans) > 0)
     st.progress(answered / total)
     st.write(f"Answered {answered} of {total} questions")
 
-    # ---------- SUBMIT BUTTON ----------
+    # Submit
     all_answered = answered == total
     submit = st.button("Submit Quiz", disabled=not all_answered)
     if not all_answered:
         st.warning("Please answer all questions before submitting.")
 
-    # ---------- SCORING & LEADERBOARD ----------
     if submit:
         score = 0
         for i, row in st.session_state.quiz.iterrows():
@@ -154,22 +152,27 @@ if st.session_state.quiz_started:
         ])
         st.success(f"Final Score: {score}/{total} ({percentage}%)")
 
-        # Reload fresh results
-        results_data = load_results()
-        leaderboard = (
-            results_data.groupby("email")
-            .agg(avg_score=("percentage", "mean"),
-                 quizzes=("percentage", "count"),
-                 best_score=("percentage", "max"))
-            .sort_values("avg_score", ascending=False)
-            .reset_index()
-        )
-        leaderboard["avg_score"] = leaderboard["avg_score"].round(2)
-        leaderboard["username"] = leaderboard["email"].apply(format_username)
+        st.session_state.quiz_started = False
+        st.balloons()
 
-        # Show leaderboard
-        st.subheader("Leaderboard")
-        st.dataframe(leaderboard[["username", "avg_score", "quizzes", "best_score"]])
+# ---------------- LEADERBOARD (always visible) ----------------
+st.subheader("Leaderboard")
+results_data = load_results()
+if not results_data.empty:
+    leaderboard = (
+        results_data.groupby("email")
+        .agg(
+            avg_score=("percentage", "mean"),
+            quizzes=("percentage", "count"),
+            best_score=("percentage", "max")
+        )
+        .sort_values("avg_score", ascending=False)
+        .reset_index()
+    )
+    leaderboard["avg_score"] = leaderboard["avg_score"].round(2)
+    leaderboard["username"] = leaderboard["email"].apply(format_username)
+
+    st.dataframe(leaderboard[["username", "avg_score", "quizzes", "best_score"]])
 
         # ---------- ATTEMPTS LEFT ----------
         attempts_today = len(
