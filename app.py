@@ -92,24 +92,32 @@ if st.session_state.quiz_started:
 
         user_answers = []
 
+        progress_bar = st.progress(0)
+
         for i, row in st.session_state.quiz.iterrows():
 
-            options = {
-                "A": row["A"],
-                "B": row["B"],
-                "C": row["C"],
-                "D": row["D"]
-            }
+            options = [
+                ("A", row["A"]),
+                ("B", row["B"]),
+                ("C", row["C"]),
+                ("D", row["D"])
+            ]
+
+            random.shuffle(options)
+
+            option_dict = dict(options)
 
             selected = st.multiselect(
                 f"Q{i+1}: {row['question']}",
-                options=list(options.keys()),
-                format_func=lambda x: options[x],
-                key=f"question_{i}"   # also improved key
+                options=[key for key, _ in options],
+                format_func=lambda x: option_dict[x],
+                key=i
             )
 
             user_answers.append(selected)
-
+             # ✅ Update progress based on answered questions
+            answered = sum(1 for ans in user_answers if len(ans) > 0)
+            progress_bar.progress(answered / total)
         submitted = st.form_submit_button("Submit")  # ✅ OUTSIDE LOOP
 
         if submitted:
