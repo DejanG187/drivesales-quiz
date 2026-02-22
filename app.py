@@ -30,11 +30,31 @@ creds = Credentials.from_service_account_info(
 
 client = gspread.authorize(creds)
 
+# ------------------ HELPER FUNCTIONS ------------------
+def format_username(email):
+    """
+    Convert email to friendly username:
+    - dejan@drivesales.com -> Dejan
+    - dejan.g@drivesales.com -> Dejan G.
+    """
+    local = email.split("@")[0]
+    if "." in local:
+        parts = local.split(".")
+        name = parts[0].capitalize()
+        initial = parts[1][0].upper() + "."
+        return f"{name} {initial}"
+    else:
+        return local.capitalize()
+
 # ---------- CACHED LOAD FUNCTIONS ----------
 @st.cache_data(ttl=60)
-def load_questions():
+def load_questions(limit=20):
     sheet = client.open_by_key(SHEET_ID).worksheet(QUESTIONS_TAB)
-    return pd.DataFrame(sheet.get_all_records())
+    all_rows = sheet.get_all_records()
+    # Filter out empty rows (rows without a question)
+    filtered_rows = [row for row in all_rows if row.get("question")]
+    # Take only the first `limit` rows
+    return pd.DataFrame(filtered_rows[:limit])
 
 @st.cache_data(ttl=30)
 def load_results():
@@ -228,7 +248,13 @@ if st.session_state.view_leaderboard or not st.session_state.quiz_started:
             .reset_index()
         )
         leaderboard["avg_score"] = leaderboard["avg_score"].round(2)
-        st.dataframe(leaderboard)
+                # Add a 'username' column formatted from email
+        leaderboard["username"] = leaderboard["email"].apply(format_username)
+
+        # Show only username and scores
+        st.dataframe(
+            leaderboard[["username", "avg_score", "quizzes", "best_score"]]
+        )
 
         # Button to go back to quiz
         if email and st.button("Back to Quiz"):
