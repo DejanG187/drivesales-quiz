@@ -30,11 +30,22 @@ creds = Credentials.from_service_account_info(
 
 client = gspread.authorize(creds)
 
-questions_sheet = client.open_by_key(SHEET_ID).worksheet(QUESTIONS_TAB)
-results_sheet = client.open_by_key(SHEET_ID).worksheet(RESULTS_TAB)
+# ---------- CACHED LOAD FUNCTIONS ----------
+@st.cache_data(ttl=60)
+def load_questions():
+    sheet = client.open_by_key(SHEET_ID).worksheet(QUESTIONS_TAB)
+    return pd.DataFrame(sheet.get_all_records())
 
-questions_data = pd.DataFrame(questions_sheet.get_all_records())
-results_data = pd.DataFrame(results_sheet.get_all_records())
+@st.cache_data(ttl=30)
+def load_results():
+    sheet = client.open_by_key(SHEET_ID).worksheet(RESULTS_TAB)
+    return pd.DataFrame(sheet.get_all_records())
+
+questions_data = load_questions()
+results_data = load_results()
+
+# Keep results_sheet reference to append rows later
+results_sheet = client.open_by_key(SHEET_ID).worksheet(RESULTS_TAB)
 
 # TITLE
 st.title("DriveSales Daily Quiz")
