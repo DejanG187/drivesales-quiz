@@ -390,22 +390,20 @@ if not results_data.empty:
 
     leaderboard["medal"] = leaderboard["rank"].apply(medal)
 
-    # Optional: highlight logged-in user row
+    # ✅ display view (no email column)
+    view = leaderboard[["rank","medal","username","avg_score","attempts","best_score"]]
+
     if email:
+        current_user_display = format_username(email)
+
         def highlight_user(row):
-            if row["email"] == email:
+            if row.get("username") == current_user_display:
                 return ["background-color: #1f6f3d; color: white"] * len(row)
             return [""] * len(row)
 
-        styled = leaderboard[["rank","medal","username","avg_score","attempts","best_score"]].style.apply(
-            highlight_user, axis=1
-        )
-        st.dataframe(styled, use_container_width=True)
+        st.dataframe(view.style.apply(highlight_user, axis=1), use_container_width=True)
     else:
-        st.dataframe(
-            leaderboard[["rank","medal","username","avg_score","attempts","best_score"]],
-            use_container_width=True
-        )
+        st.dataframe(view, use_container_width=True)
 
 # --- Attempts left info ---
 if email:
