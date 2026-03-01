@@ -131,19 +131,15 @@ if email and not results_data.empty and "date" in results_data.columns:
         st.info(f"Attempts today: {attempts_today}/{MAX_ATTEMPTS_PER_DAY}")
 
 # ---------------- START QUIZ ----------------
-if email and not st.session_state.quiz_started:
+import uuid
+
+if email and not st.session_state.quiz_started and not st.session_state.quiz_finished:
     if st.button("Start Quiz"):
+        st.session_state.quiz_id = str(uuid.uuid4())
         quiz = questions_data.sample(min(QUESTIONS_PER_QUIZ, len(questions_data))).reset_index(drop=True)
         st.session_state.quiz = quiz
         st.session_state.quiz_started = True
-
-import uuid
-
-if st.button("Start Quiz"):
-    st.session_state.quiz_id = str(uuid.uuid4())
-    quiz = questions_data.sample(min(QUESTIONS_PER_QUIZ, len(questions_data))).reset_index(drop=True)
-    st.session_state.quiz = quiz
-    st.session_state.quiz_started = True
+        st.rerun()
 
 # ---------------- QUIZ FORM ----------------
 if st.session_state.quiz_started:
@@ -292,43 +288,43 @@ if st.session_state.quiz_finished:
             st.session_state.quiz_finished = False
             st.rerun()
 
-# ---------------- LEADERBOARD (always visible) ----------------
+# ---------------- LEADERBOARD ----------------
 st.subheader("Leaderboard")
 
 results_data = load_results()
 
 if not results_data.empty:
 
-    results_data["date"] = pd.to_datetime(results_data["date"])
+    results_data["date"] = pd.to_datetime(results_data["date"], errors="coerce")
+    results_data = results_data.dropna(subset=["date"])  # remove bad dates safely
+
     results_data["week"] = results_data["date"].dt.to_period("W-MON")
     results_data["month"] = results_data["date"].dt.to_period("M")
 
-    leaderboard_type = st.selectbox(
-        "Select leaderboard type",
-        ["All Time", "Weekly", "Monthly"]
-    )
+    leaderboard_type = st.selectbox("Select leaderboard type", ["All Time", "Weekly", "Monthly"])
 
     if leaderboard_type == "Weekly":
         current_week = pd.Timestamp.now().to_period("W-MON")
         filtered = results_data[results_data["week"] == current_week]
-
     elif leaderboard_type == "Monthly":
         current_month = pd.Timestamp.now().to_period("M")
         filtered = results_data[results_data["month"] == current_month]
-
     else:
         filtered = results_data
 
-    # --- choose filtered (as you already do) ---
-
-    # ✅ IMPORTANT: reduce from question-level rows to quiz-level rows
-    quiz_level = filtered.drop_duplicates(subset=["quiz_id"])
+    # ✅ DEDUPE SAFELY
+    if "quiz_id" in filtered.columns:
+        quiz_level = filtered.drop_duplicates(subset=["quiz_id"])
+        attempts_col = ("quiz_id", "count")
+    else:
+        quiz_level = filtered.copy()
+        attempts_col = ("percentage", "count")  # old format fallback
 
     leaderboard = (
         quiz_level.groupby("email")
         .agg(
             avg_score=("percentage", "mean"),
-            attempts=("quiz_id", "count"),
+            attempts=attempts_col,
             best_score=("percentage", "max")
         )
         .sort_values("avg_score", ascending=False)
@@ -343,26 +339,17 @@ if not results_data.empty:
         use_container_width=True
     )
 
-    leaderboard["avg_score"] = leaderboard["avg_score"].round(2)
-    leaderboard["username"] = leaderboard["email"].apply(format_username)
-
-    st.dataframe(
-        leaderboard[["username","avg_score","attempts","best_score"]],
-        use_container_width=True
-    )
-
-if email:
-    streak = calculate_streak(results_data, email)
-    st.info(f"🔥 Current streak: {streak} run(s) (70%+ score required)")
-
 # --- Attempts left info ---
-if email:
-    today_rows = results_data[
+today_rows = results_data[
     (results_data["email"] == email) &
     (results_data["date"].astype(str).str[:10] == today)
 ]
+
+if "quiz_id" in today_rows.columns:
     attempts_today = today_rows["quiz_id"].nunique()
-    remaining_attempts = MAX_ATTEMPTS_PER_DAY - attempts_today
+else:
+    attempts_today = len(today_rows)  # old format fallback
+    
     if remaining_attempts > 0:
         st.info(f"You have {remaining_attempts} attempt(s) left today.")
     else:
