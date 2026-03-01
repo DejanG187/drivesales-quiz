@@ -50,20 +50,26 @@ def calculate_streak(results_df, user_email, threshold=70):
     if user_data.empty:
         return 0
 
+    # ✅ Reduce to quiz-level rows (1 row per quiz)
+    user_data = user_data.drop_duplicates(subset=["quiz_id"])
+
     user_data["date"] = pd.to_datetime(user_data["date"]).dt.date
     user_data = user_data[user_data["percentage"] >= threshold]
     user_data = user_data.sort_values("date", ascending=False)
 
     streak = 0
-    today = datetime.now().date()
+    day_cursor = datetime.now().date()
 
-    for date in user_data["date"]:
-        if date == today:
+    # Use unique days only (in case multiple quizzes/day)
+    unique_days = list(dict.fromkeys(user_data["date"].tolist()))
+
+    for d in unique_days:
+        if d == day_cursor:
             streak += 1
-            today = today - pd.Timedelta(days=1)
-        elif date == today - pd.Timedelta(days=1):
+            day_cursor = day_cursor - pd.Timedelta(days=1)
+        elif d == day_cursor - pd.Timedelta(days=1):
             streak += 1
-            today = today - pd.Timedelta(days=1)
+            day_cursor = day_cursor - pd.Timedelta(days=1)
         else:
             break
 
@@ -112,10 +118,12 @@ results_data = load_results()
 today = datetime.now().strftime("%Y-%m-%d")
 attempts_today = 0
 if email and not results_data.empty and "date" in results_data.columns:
-    results_data["date_only"] = results_data["date"].astype(str).str[:10]
-    attempts_today = len(
-        results_data[(results_data["email"]==email) & (results_data["date_only"]==today)]
-    )
+    today_rows = results_data[
+        (results_data["email"] == email) &
+        (results_data["date"].astype(str).str[:10] == today)
+    ]
+    attempts_today = today_rows["quiz_id"].nunique()
+
     if attempts_today >= MAX_ATTEMPTS_PER_DAY:
         st.error("You reached max attempts today. Come back tomorrow!")
         st.stop()
@@ -128,6 +136,14 @@ if email and not st.session_state.quiz_started:
         quiz = questions_data.sample(min(QUESTIONS_PER_QUIZ, len(questions_data))).reset_index(drop=True)
         st.session_state.quiz = quiz
         st.session_state.quiz_started = True
+
+import uuid
+
+if st.button("Start Quiz"):
+    st.session_state.quiz_id = str(uuid.uuid4())
+    quiz = questions_data.sample(min(QUESTIONS_PER_QUIZ, len(questions_data))).reset_index(drop=True)
+    st.session_state.quiz = quiz
+    st.session_state.quiz_started = True
 
 # ---------------- QUIZ FORM ----------------
 if st.session_state.quiz_started:
@@ -160,33 +176,71 @@ if st.session_state.quiz_started:
         st.warning("Please answer all questions before submitting.")
 
     if submit:
+        import uuid
+
+        # Ensure quiz_id exists (best is to set this on Start Quiz)
+        if "quiz_id" not in st.session_state:
+            st.session_state.quiz_id = str(uuid.uuid4())
+
+        quiz_id = st.session_state.quiz_id
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # --- Calculate score ---
         score = 0
+        per_question_rows = []
+
         for i, row in st.session_state.quiz.iterrows():
-            correct_answers = row["correct"].split(",")
-            if set(user_answers[i]) == set(correct_answers):
+            correct_answers = [x.strip() for x in str(row["correct"]).split(",") if x.strip()]
+            user_selected = [x.strip() for x in user_answers[i] if str(x).strip()]
+
+            is_correct = set(user_selected) == set(correct_answers)
+            if is_correct:
                 score += 1
+
+            per_question_rows.append([
+                email,                          # email
+                quiz_id,                         # quiz_id
+                score,                           # score (temporary, will overwrite after loop below if you want)
+                total,                           # total
+                None,                            # percentage (temporary)
+                timestamp,                       # date
+                i + 1,                           # question_number
+                row["question"],                 # question_text
+                ",".join(user_selected),         # user_answer
+                ",".join(correct_answers),       # correct_answer
+                is_correct                       # is_correct
+            ])
 
         percentage = round(score / total * 100, 2)
 
+        # Now that we know final score/percentage, update those fields in each row
+        for r in per_question_rows:
+            r[2] = score        # score
+            r[4] = percentage   # percentage
+
+        # --- Save results (bulk append) ---
         try:
-            results_sheet.append_row([
-                email,
-                score,
-                total,
-                percentage,
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            ])
+            # Append all question rows in one API call
+            results_sheet.append_rows(per_question_rows, value_input_option="RAW")
+
+            # Clear cached results so attempts/leaderboard update immediately
             load_results.clear()
         except gspread.exceptions.APIError as e:
             st.error(f"Failed to save result: {e}")
             st.stop()
+
+        # --- Store for review screen (correct answers display) ---
         st.session_state.user_answers = user_answers
         st.session_state.quiz_snapshot = st.session_state.quiz.copy()
 
+        # --- Move to result screen ---
         st.session_state.quiz_started = False
         st.session_state.quiz_finished = True
         st.session_state.last_score = (score, total, percentage)
-        
+
+        # Optional: clear timer if you use it
+        # st.session_state.pop("quiz_start_time", None)
+        st.session_state.pop("quiz_id", None) 
         st.rerun()
 
 # ---------------- RESULT SCREEN ----------------
@@ -228,6 +282,7 @@ if st.session_state.quiz_finished:
 
     with col1:
         if st.button("Try Again"):
+            st.session_state.pop("quiz_id", None)
             st.session_state.quiz_started = False
             st.session_state.quiz_finished = False
             st.rerun()
@@ -264,15 +319,28 @@ if not results_data.empty:
     else:
         filtered = results_data
 
+    # --- choose filtered (as you already do) ---
+
+    # ✅ IMPORTANT: reduce from question-level rows to quiz-level rows
+    quiz_level = filtered.drop_duplicates(subset=["quiz_id"])
+
     leaderboard = (
-        filtered.groupby("email")
+        quiz_level.groupby("email")
         .agg(
-            avg_score=("percentage","mean"),
-            attempts=("percentage","count"),
-            best_score=("percentage","max")
+            avg_score=("percentage", "mean"),
+            attempts=("quiz_id", "count"),
+            best_score=("percentage", "max")
         )
         .sort_values("avg_score", ascending=False)
         .reset_index()
+    )
+
+    leaderboard["avg_score"] = leaderboard["avg_score"].round(2)
+    leaderboard["username"] = leaderboard["email"].apply(format_username)
+
+    st.dataframe(
+        leaderboard[["username", "avg_score", "attempts", "best_score"]],
+        use_container_width=True
     )
 
     leaderboard["avg_score"] = leaderboard["avg_score"].round(2)
@@ -289,9 +357,11 @@ if email:
 
 # --- Attempts left info ---
 if email:
-    attempts_today = len(
-        results_data[(results_data["email"]==email) & (results_data["date"].astype(str).str[:10]==today)]
-    )
+    today_rows = results_data[
+    (results_data["email"] == email) &
+    (results_data["date"].astype(str).str[:10] == today)
+]
+    attempts_today = today_rows["quiz_id"].nunique()
     remaining_attempts = MAX_ATTEMPTS_PER_DAY - attempts_today
     if remaining_attempts > 0:
         st.info(f"You have {remaining_attempts} attempt(s) left today.")
