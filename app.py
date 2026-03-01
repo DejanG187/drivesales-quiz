@@ -4,8 +4,10 @@ import random
 import uuid
 from datetime import datetime
 import gspread
-from google.oauth2.service_account import Credentials
 
+from google.oauth2.service_account import Credentials
+from zoneinfo import ZoneInfo
+TZ = ZoneInfo("Europe/Belgrade")
 # ---------------- CONFIG ----------------
 SHEET_ID = "1zDAsJD4uxw01eItCZ6Jeu6PjcQLQJHHkPczFFFnID7A"
 QUESTIONS_TAB = "questions"
@@ -140,7 +142,7 @@ def load_questions(limit=90) -> pd.DataFrame:
 
     return pd.DataFrame(filtered_rows)
 
-@st.cache_data(ttl=300)  # longer to reduce read quota
+@st.cache_data(ttl=15)  # longer to reduce read quota
 def load_results_raw() -> pd.DataFrame:
     sheet = get_worksheet(SHEET_ID, RESULTS_TAB)
     values = sheet.get_all_values()
@@ -183,7 +185,8 @@ if not email.endswith(ALLOWED_DOMAIN):
     st.error("Only @drivesales.com emails allowed")
     st.stop()
 
-today = datetime.now().strftime("%Y-%m-%d")
+now = datetime.now(TZ)
+today = now.strftime("%Y-%m-%d")
 
 # ---------------- LOAD RESULTS ONCE (SESSION) ----------------
 if "results_data" not in st.session_state:
@@ -249,7 +252,8 @@ if st.session_state.quiz_started:
         st.warning("Please answer all questions before submitting.")
 
     if submit:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.now(TZ)
+        timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
 
         # score calc
         score = 0
