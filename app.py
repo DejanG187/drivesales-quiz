@@ -162,6 +162,24 @@ if st.session_state.quiz_started:
 
         st.rerun()
 
+# ---------------- RESULT SCREEN ----------------
+if st.session_state.quiz_finished:
+    score, total, percentage = st.session_state.last_score
+    st.success(f"Final Score: {score}/{total} ({percentage}%)")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("Try Again"):
+            st.session_state.quiz_started = False
+            st.session_state.quiz_finished = False
+            st.rerun()
+
+    with col2:
+        if st.button("Go to Home"):
+            st.session_state.quiz_finished = False
+            st.rerun()
+
 # ---------------- LEADERBOARD (always visible) ----------------
 st.subheader("Leaderboard")
 results_data = load_results()
