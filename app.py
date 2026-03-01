@@ -94,7 +94,20 @@ def load_questions(limit=90):
 @st.cache_data(ttl=30)
 def load_results():
     sheet = get_worksheet(SHEET_ID, RESULTS_TAB)
-    return pd.DataFrame(sheet.get_all_records())
+    values = sheet.get_all_values()
+
+    # If sheet is empty or only header exists
+    if not values or len(values) < 2:
+        return pd.DataFrame()
+
+    headers = values[0]
+    rows = values[1:]
+
+    # Remove completely empty rows
+    rows = [r for r in rows if any(str(cell).strip() for cell in r)]
+
+    df = pd.DataFrame(rows, columns=headers)
+    return df
 
 questions_data = load_questions()
 
@@ -114,6 +127,17 @@ if email and not email.endswith(ALLOWED_DOMAIN):
     st.stop()
 # ✅ LOAD RESULTS HERE
 results_data = load_results()
+
+# ✅ STEP 2: Convert types (because get_all_values() returns strings)
+if not results_data.empty:
+    # numeric columns
+    for col in ["score", "total", "percentage", "question_number"]:
+        if col in results_data.columns:
+            results_data[col] = pd.to_numeric(results_data[col], errors="coerce")
+
+    # date column
+    if "date" in results_data.columns:
+        results_data["date"] = pd.to_datetime(results_data["date"], errors="coerce")
 # ---------------- CHECK ATTEMPTS ----------------
 today = datetime.now().strftime("%Y-%m-%d")
 
