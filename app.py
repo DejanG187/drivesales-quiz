@@ -67,7 +67,6 @@ def load_results():
     return pd.DataFrame(sheet.get_all_records())
 
 questions_data = load_questions()
-results_data = load_results()
 
 # ---------------- SESSION STATE ----------------
 if "quiz_started" not in st.session_state:
@@ -183,19 +182,19 @@ if st.session_state.quiz_finished:
 # ---------------- LEADERBOARD (always visible) ----------------
 if not st.session_state.quiz_finished:
     st.subheader("Leaderboard")
-results_data = load_results()
-if not results_data.empty:
-    leaderboard = (
-        results_data.groupby("email")
-        .agg(avg_score=("percentage","mean"),
-             attempts=("percentage","count"),
-             best_score=("percentage","max"))
-        .sort_values("avg_score", ascending=False)
-        .reset_index()
-    )
-    leaderboard["avg_score"] = leaderboard["avg_score"].round(2)
-    leaderboard["username"] = leaderboard["email"].apply(format_username)
-    st.dataframe(leaderboard[["username","avg_score","quizzes","best_score"]])
+    results_data = load_results()
+    if not results_data.empty:
+        leaderboard = (
+            results_data.groupby("email")
+            .agg(avg_score=("percentage","mean"),
+                attempts=("percentage","count"),
+                best_score=("percentage","max"))
+            .sort_values("avg_score", ascending=False)
+            .reset_index()
+        )
+        leaderboard["avg_score"] = leaderboard["avg_score"].round(2)
+        leaderboard["username"] = leaderboard["email"].apply(format_username)
+        st.dataframe(leaderboard[["username","avg_score","attempts","best_score"]])
 
 # --- Attempts left info ---
 if email:
