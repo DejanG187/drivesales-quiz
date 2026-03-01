@@ -43,6 +43,19 @@ def format_username(email: str) -> str:
         return f"{name} {initial}"
     return local.capitalize()
 
+def get_attempts_today(results_df: pd.DataFrame, user_email: str, today_str: str) -> int:
+    if results_df.empty or "email" not in results_df.columns or "date" not in results_df.columns:
+        return 0
+
+    today_rows = results_df[
+        (results_df["email"] == user_email) &
+        (results_df["date"].astype(str).str[:10] == today_str)
+    ]
+
+    if "quiz_id" in today_rows.columns:
+        return today_rows["quiz_id"].nunique()
+    return len(today_rows)
+
 def calculate_streak(results_df: pd.DataFrame, user_email: str, threshold=70) -> int:
     if results_df.empty or "email" not in results_df.columns:
         return 0
@@ -163,18 +176,10 @@ results_data = st.session_state.results_data
 
 today = datetime.now().strftime("%Y-%m-%d")
 
-# ---------------- CHECK ATTEMPTS ----------------
-attempts_today = 0
-if not results_data.empty and "date" in results_data.columns and "email" in results_data.columns:
-    today_rows = results_data[
-        (results_data["email"] == email) &
-        (results_data["date"].astype(str).str[:10] == today)
-    ]
-    if "quiz_id" in today_rows.columns:
-        attempts_today = today_rows["quiz_id"].nunique()
-    else:
-        attempts_today = len(today_rows)
+# ✅ Recompute attempts every rerun (fixes Try Again / View Leaderboard refresh)
+attempts_today = get_attempts_today(results_data, email, today)
 
+# ---------------- CHECK ATTEMPTS ----------------
 if attempts_today >= MAX_ATTEMPTS_PER_DAY:
     st.error("You reached max attempts today. Come back tomorrow!")
     st.stop()
@@ -265,7 +270,6 @@ if st.session_state.quiz_started:
             st.error(f"Failed to save result: {e}")
             st.stop()
 
-        # store for review
         st.session_state.user_answers = user_answers
         st.session_state.quiz_snapshot = st.session_state.quiz.copy()
 
@@ -273,7 +277,6 @@ if st.session_state.quiz_started:
         st.session_state.quiz_finished = True
         st.session_state.last_score = (score, total, percentage)
 
-        # cleanup
         st.session_state.pop("quiz_id", None)
 
         st.rerun()
@@ -321,15 +324,19 @@ if st.session_state.quiz_finished:
             st.session_state.pop("quiz", None)
             st.session_state.pop("quiz_snapshot", None)
             st.session_state.pop("user_answers", None)
+            st.session_state.pop("last_score", None)
             st.rerun()
 
     with col2:
         if st.button("View Leaderboard"):
             st.session_state.quiz_finished = False
+            st.session_state.pop("quiz", None)
+            st.session_state.pop("quiz_snapshot", None)
+            st.session_state.pop("user_answers", None)
+            st.session_state.pop("last_score", None)
             st.rerun()
 
 # ---------------- LEADERBOARD ----------------
-# Show leaderboard only when NOT taking the quiz (optional)
 if not st.session_state.quiz_started:
     st.subheader("Leaderboard")
 
@@ -352,7 +359,6 @@ if not st.session_state.quiz_started:
         else:
             filtered = results_data
 
-        # quiz-level
         if "quiz_id" in filtered.columns:
             quiz_level = filtered.drop_duplicates(subset=["quiz_id"])
             attempts_series = ("quiz_id", "nunique")
@@ -399,7 +405,6 @@ if not st.session_state.quiz_started:
 
         st.dataframe(view.style.apply(highlight_user, axis=1), use_container_width=True)
 
-    # streak
     streak = calculate_streak(st.session_state.results_data, email)
     st.info(f"🔥 Current streak: {streak} day(s) (70%+ required)")
 
