@@ -181,7 +181,8 @@ if st.session_state.quiz_finished:
             st.rerun()
 
 # ---------------- LEADERBOARD (always visible) ----------------
-st.subheader("Leaderboard")
+if not st.session_state.quiz_finished:
+    st.subheader("Leaderboard")
 results_data = load_results()
 if not results_data.empty:
     leaderboard = (
