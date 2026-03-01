@@ -44,6 +44,30 @@ def format_username(email):
         return f"{name} {initial}"
     else:
         return local.capitalize()
+    
+def calculate_streak(results_df, user_email, threshold=70):
+    user_data = results_df[results_df["email"] == user_email].copy()
+    if user_data.empty:
+        return 0
+
+    user_data["date"] = pd.to_datetime(user_data["date"]).dt.date
+    user_data = user_data[user_data["percentage"] >= threshold]
+    user_data = user_data.sort_values("date", ascending=False)
+
+    streak = 0
+    today = datetime.now().date()
+
+    for date in user_data["date"]:
+        if date == today:
+            streak += 1
+            today = today - pd.Timedelta(days=1)
+        elif date == today - pd.Timedelta(days=1):
+            streak += 1
+            today = today - pd.Timedelta(days=1)
+        else:
+            break
+
+    return streak
 
 # ---------------- CACHED LOAD FUNCTIONS ----------------
 @st.cache_data(ttl=60)
@@ -259,6 +283,10 @@ if not results_data.empty:
         use_container_width=True
     )
 
+if email:
+    streak = calculate_streak(results_data, email)
+    st.info(f"🔥 Current streak: {streak} day(s) (70%+ score required)")
+    
 # --- Attempts left info ---
 if email:
     attempts_today = len(
