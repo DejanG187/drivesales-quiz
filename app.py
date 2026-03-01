@@ -72,6 +72,8 @@ results_data = load_results()
 # ---------------- SESSION STATE ----------------
 if "quiz_started" not in st.session_state:
     st.session_state.quiz_started = False
+if "quiz_finished" not in st.session_state:
+    st.session_state.quiz_finished = False
 
 # ---------------- TITLE ----------------
 st.title("DriveSales Daily Quiz")
@@ -157,6 +159,7 @@ if st.session_state.quiz_started:
         st.session_state.quiz_started = False
         st.session_state.quiz_finished = True
         st.session_state.last_score = (score, total, percentage)
+
         st.rerun()
 
 # ---------------- LEADERBOARD (always visible) ----------------
