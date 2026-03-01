@@ -43,7 +43,21 @@ def format_username(email: str) -> str:
         return f"{name} {initial}"
     return local.capitalize()
 
+def convert_results_types(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df
+
+    for col in ["score", "total", "percentage"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    if "date" in df.columns:
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+
+    return df
+
 def get_attempts_today(results_df: pd.DataFrame, user_email: str, today_str: str) -> int:
+    """Counts quiz attempts today for a user (1 row per attempt schema)."""
     if results_df.empty or "email" not in results_df.columns or "date" not in results_df.columns:
         return 0
 
@@ -51,12 +65,10 @@ def get_attempts_today(results_df: pd.DataFrame, user_email: str, today_str: str
         (results_df["email"] == user_email) &
         (results_df["date"].astype(str).str[:10] == today_str)
     ]
-
-    if "quiz_id" in today_rows.columns:
-        return today_rows["quiz_id"].nunique()
     return len(today_rows)
 
 def calculate_streak(results_df: pd.DataFrame, user_email: str, threshold=70) -> int:
+    """Streak of consecutive days with >= threshold score (1 row/day counts once)."""
     if results_df.empty or "email" not in results_df.columns:
         return 0
 
@@ -64,27 +76,22 @@ def calculate_streak(results_df: pd.DataFrame, user_email: str, threshold=70) ->
     if user_data.empty:
         return 0
 
-    # 1 row per quiz attempt
-    if "quiz_id" in user_data.columns:
-        user_data = user_data.drop_duplicates(subset=["quiz_id"])
-
     if "date" not in user_data.columns or "percentage" not in user_data.columns:
         return 0
 
     user_data["date"] = pd.to_datetime(user_data["date"], errors="coerce").dt.date
     user_data["percentage"] = pd.to_numeric(user_data["percentage"], errors="coerce")
-
     user_data = user_data.dropna(subset=["date", "percentage"])
     user_data = user_data[user_data["percentage"] >= threshold].sort_values("date", ascending=False)
 
     if user_data.empty:
         return 0
 
+    # Unique days only
+    unique_days = list(dict.fromkeys(user_data["date"].tolist()))
+
     streak = 0
     day_cursor = datetime.now().date()
-
-    # unique days only (multiple quizzes/day still counts as 1 day)
-    unique_days = list(dict.fromkeys(user_data["date"].tolist()))
 
     for d in unique_days:
         if d == day_cursor:
@@ -116,7 +123,7 @@ def load_questions(limit=90) -> pd.DataFrame:
 
     return pd.DataFrame(filtered_rows)
 
-@st.cache_data(ttl=180)  # 3 minutes
+@st.cache_data(ttl=180)  # 3 minutes (avoid 429)
 def load_results_raw() -> pd.DataFrame:
     sheet = get_worksheet(SHEET_ID, RESULTS_TAB)
     values = sheet.get_all_values()
@@ -128,29 +135,15 @@ def load_results_raw() -> pd.DataFrame:
     rows = values[1:]
     rows = [r for r in rows if any(str(cell).strip() for cell in r)]
 
-    # pad short rows
     max_cols = len(headers)
     padded = [r + [""] * (max_cols - len(r)) if len(r) < max_cols else r[:max_cols] for r in rows]
 
     return pd.DataFrame(padded, columns=headers)
 
-def convert_results_types(df: pd.DataFrame) -> pd.DataFrame:
-    if df.empty:
-        return df
-
-    for col in ["score", "total", "percentage", "question_number"]:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    if "date" in df.columns:
-        df["date"] = pd.to_datetime(df["date"], errors="coerce")
-
-    return df
-
 def refresh_results_data():
-    # Force a fresh read from Sheets (only when we explicitly call it)
     load_results_raw.clear()
     st.session_state.results_data = convert_results_types(load_results_raw())
+
 # ---------------- SESSION STATE ----------------
 if "quiz_started" not in st.session_state:
     st.session_state.quiz_started = False
@@ -164,32 +157,33 @@ questions_data = load_questions()
 
 # ---------------- LOGIN ----------------
 email = st.text_input("Enter company email")
-
 if not email:
     st.stop()
-
 if not email.endswith(ALLOWED_DOMAIN):
     st.error("Only @drivesales.com emails allowed")
     st.stop()
 
-# ---------------- LOAD RESULTS ONCE PER RERUN ----------------
+# ---------------- LOAD RESULTS (SESSION CACHED) ----------------
 if "results_data" not in st.session_state:
     st.session_state.results_data = convert_results_types(load_results_raw())
-results_data = st.session_state.results_data
 
-today = datetime.now().strftime("%Y-%m-%d")
-
-# ✅ Recompute attempts every rerun (fixes Try Again / View Leaderboard refresh)
-results_data = st.session_state.results_data
-# If a previous action requested a refresh, do it now (before attempts/leaderboard)
+# Handle requested refresh early (before attempts/leaderboard)
 if st.session_state.get("needs_refresh", False):
     refresh_results_data()
     st.session_state.needs_refresh = False
 
-results_data = st.session_state.results_data  # re-bind after refresh
-attempts_today = get_attempts_today(st.session_state.results_data, email, today)
+results_data = st.session_state.results_data
+
+today = datetime.now().strftime("%Y-%m-%d")
+
+# Show "saved" message after rerun
+if st.session_state.get("last_save_msg"):
+    st.success(st.session_state.last_save_msg)
+    st.session_state.last_save_msg = None
 
 # ---------------- CHECK ATTEMPTS ----------------
+attempts_today = get_attempts_today(results_data, email, today)
+
 if attempts_today >= MAX_ATTEMPTS_PER_DAY:
     st.error("You reached max attempts today. Come back tomorrow!")
     st.stop()
@@ -238,49 +232,39 @@ if st.session_state.quiz_started:
         quiz_id = st.session_state.get("quiz_id", str(uuid.uuid4()))
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+        # Calculate score
         score = 0
-        per_question_rows = []
-
         for i, row in st.session_state.quiz.iterrows():
             correct_answers = [x.strip() for x in str(row["correct"]).split(",") if x.strip()]
             user_selected = [x.strip() for x in user_answers[i] if str(x).strip()]
-
-            is_correct = set(user_selected) == set(correct_answers)
-            if is_correct:
+            if set(user_selected) == set(correct_answers):
                 score += 1
-
-            per_question_rows.append([
-                email,                       # email
-                quiz_id,                      # quiz_id
-                None,                         # score (fill after)
-                total,                        # total
-                None,                         # percentage (fill after)
-                timestamp,                    # date
-                i + 1,                        # question_number
-                row["question"],              # question_text
-                ",".join(user_selected),      # user_answer
-                ",".join(correct_answers),    # correct_answer
-                is_correct                    # is_correct
-            ])
 
         percentage = round(score / total * 100, 2)
 
-        for r in per_question_rows:
-            r[2] = score
-            r[4] = percentage
+        # ✅ ONE ROW PER QUIZ (much fewer writes/reads -> avoids 429)
+        row_to_append = [email, score, total, percentage, timestamp]
 
         try:
-            results_sheet.append_rows(per_question_rows, value_input_option="RAW")
+            results_sheet.append_row(row_to_append, value_input_option="RAW")
 
-            # ✅ request refresh on next run (reliable)
-            st.session_state.needs_refresh = True
+            # ✅ Immediately update in-memory results (no extra read)
+            new_row = pd.DataFrame([{
+                "email": email,
+                "score": score,
+                "total": total,
+                "percentage": percentage,
+                "date": pd.to_datetime(timestamp, errors="coerce")
+            }])
+            st.session_state.results_data = pd.concat([st.session_state.results_data, new_row], ignore_index=True)
 
-            # optional: keep a toast message for next run
-            st.session_state.last_save_msg = f"✅ Saved quiz attempt {quiz_id} at {timestamp}"
+            # Set message and move to result screen
+            st.session_state.last_save_msg = f"✅ Saved quiz attempt at {timestamp}"
         except gspread.exceptions.APIError as e:
             st.error(f"Failed to save result: {e}")
             st.stop()
 
+        # Store snapshot for review screen (still shows correct answers)
         st.session_state.user_answers = user_answers
         st.session_state.quiz_snapshot = st.session_state.quiz.copy()
 
@@ -290,12 +274,21 @@ if st.session_state.quiz_started:
 
         st.session_state.pop("quiz_id", None)
 
+        # Rerun so attempts update immediately
         st.rerun()
 
 # ---------------- RESULT SCREEN ----------------
 if st.session_state.quiz_finished:
     score, total, percentage = st.session_state.last_score
     st.success(f"Final Score: {score}/{total} ({percentage}%)")
+
+    # Attempts immediately reflect the new row (we appended to session_state.results_data)
+    updated_attempts_today = get_attempts_today(st.session_state.results_data, email, today)
+    remaining_attempts_now = MAX_ATTEMPTS_PER_DAY - updated_attempts_today
+    if remaining_attempts_now > 0:
+        st.info(f"You have {remaining_attempts_now} attempt(s) left today.")
+    else:
+        st.info("You reached the maximum attempts for today. Come back tomorrow!")
 
     st.divider()
     st.subheader("Review Answers")
@@ -330,7 +323,6 @@ if st.session_state.quiz_finished:
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Try Again"):
-            st.session_state.needs_refresh = True
             st.session_state.quiz_started = False
             st.session_state.quiz_finished = False
             st.session_state.pop("quiz", None)
@@ -341,7 +333,6 @@ if st.session_state.quiz_finished:
 
     with col2:
         if st.button("View Leaderboard"):
-            st.session_state.needs_refresh = True
             st.session_state.quiz_finished = False
             st.session_state.pop("quiz", None)
             st.session_state.pop("quiz_snapshot", None)
@@ -353,9 +344,10 @@ if st.session_state.quiz_finished:
 if not st.session_state.quiz_started:
     st.subheader("Leaderboard")
 
-    results_data = st.session_state.results_data
+    results_data = st.session_state.results_data.copy()
 
     if not results_data.empty and "date" in results_data.columns:
+        results_data = convert_results_types(results_data)
         results_data = results_data.dropna(subset=["date", "percentage"])
 
         results_data["week"] = results_data["date"].dt.to_period("W-MON")
@@ -372,18 +364,11 @@ if not st.session_state.quiz_started:
         else:
             filtered = results_data
 
-        if "quiz_id" in filtered.columns:
-            quiz_level = filtered.drop_duplicates(subset=["quiz_id"])
-            attempts_series = ("quiz_id", "nunique")
-        else:
-            quiz_level = filtered.copy()
-            attempts_series = ("percentage", "count")
-
         leaderboard = (
-            quiz_level.groupby("email")
+            filtered.groupby("email")
             .agg(
                 avg_score=("percentage", "mean"),
-                attempts=attempts_series,
+                attempts=("percentage", "count"),
                 best_score=("percentage", "max"),
             )
             .sort_values("avg_score", ascending=False)
@@ -393,7 +378,6 @@ if not st.session_state.quiz_started:
         leaderboard["avg_score"] = leaderboard["avg_score"].round(2)
         leaderboard["best_score"] = leaderboard["best_score"].round(2)
         leaderboard["username"] = leaderboard["email"].apply(format_username)
-
         leaderboard["rank"] = leaderboard["avg_score"].rank(method="min", ascending=False).astype(int)
 
         def medal(rank: int) -> str:
