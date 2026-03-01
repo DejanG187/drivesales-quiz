@@ -147,6 +147,10 @@ def convert_results_types(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
+def refresh_results_data():
+    # Force a fresh read from Sheets (only when we explicitly call it)
+    load_results_raw.clear()
+    st.session_state.results_data = convert_results_types(load_results_raw())
 # ---------------- SESSION STATE ----------------
 if "quiz_started" not in st.session_state:
     st.session_state.quiz_started = False
@@ -171,13 +175,17 @@ if not email.endswith(ALLOWED_DOMAIN):
 # ---------------- LOAD RESULTS ONCE PER RERUN ----------------
 if "results_data" not in st.session_state:
     st.session_state.results_data = convert_results_types(load_results_raw())
-
+def refresh_results_data():
+    # Force a fresh read from Sheets (only when we explicitly call it)
+    load_results_raw.clear()
+    st.session_state.results_data = convert_results_types(load_results_raw())
 results_data = st.session_state.results_data
 
 today = datetime.now().strftime("%Y-%m-%d")
 
 # ✅ Recompute attempts every rerun (fixes Try Again / View Leaderboard refresh)
-attempts_today = get_attempts_today(results_data, email, today)
+results_data = st.session_state.results_data
+attempts_today = get_attempts_today(st.session_state.results_data, email, today)
 
 # ---------------- CHECK ATTEMPTS ----------------
 if attempts_today >= MAX_ATTEMPTS_PER_DAY:
@@ -261,11 +269,8 @@ if st.session_state.quiz_started:
 
         try:
             results_sheet.append_rows(per_question_rows, value_input_option="RAW")
-
-            # refresh cached results ONCE
-            load_results_raw.clear()
-            st.session_state.results_data = convert_results_types(load_results_raw())
-
+            refresh_results_data()
+            st.success(f"✅ Saved quiz attempt {quiz_id} at {timestamp}")
         except gspread.exceptions.APIError as e:
             st.error(f"Failed to save result: {e}")
             st.stop()
@@ -319,6 +324,7 @@ if st.session_state.quiz_finished:
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Try Again"):
+            refresh_results_data()  
             st.session_state.quiz_started = False
             st.session_state.quiz_finished = False
             st.session_state.pop("quiz", None)
@@ -329,6 +335,7 @@ if st.session_state.quiz_finished:
 
     with col2:
         if st.button("View Leaderboard"):
+            refresh_results_data() 
             st.session_state.quiz_finished = False
             st.session_state.pop("quiz", None)
             st.session_state.pop("quiz_snapshot", None)
@@ -409,6 +416,7 @@ if not st.session_state.quiz_started:
     st.info(f"🔥 Current streak: {streak} day(s) (70%+ required)")
 
 # ---------------- ATTEMPTS LEFT INFO ----------------
+attempts_today = get_attempts_today(st.session_state.results_data, email, today)
 remaining_attempts = MAX_ATTEMPTS_PER_DAY - attempts_today
 if remaining_attempts > 0:
     st.info(f"You have {remaining_attempts} attempt(s) left today.")
