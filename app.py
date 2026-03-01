@@ -285,8 +285,8 @@ if not results_data.empty:
 
 if email:
     streak = calculate_streak(results_data, email)
-    st.info(f"🔥 Current streak: {streak} day(s) (70%+ score required)")
-    
+    st.info(f"🔥 Current streak: {streak} run(s) (70%+ score required)")
+
 # --- Attempts left info ---
 if email:
     attempts_today = len(
