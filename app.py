@@ -177,7 +177,7 @@ if st.session_state.quiz_finished:
             st.rerun()
 
     with col2:
-        if st.button("Go to Home"):
+        if st.button("View Leaderboard"):
             st.session_state.quiz_finished = False
             st.rerun()
 
