@@ -323,6 +323,16 @@ if st.session_state.quiz_finished:
 st.subheader("Leaderboard")
 
 results_data = load_results()
+# ✅ Convert types (values from Sheets come as strings)
+if not results_data.empty:
+    for col in ["score", "total", "percentage", "question_number"]:
+        if col in results_data.columns:
+            results_data[col] = pd.to_numeric(results_data[col], errors="coerce")
+
+    if "date" in results_data.columns:
+        results_data["date"] = pd.to_datetime(results_data["date"], errors="coerce")
+
+    results_data = results_data.dropna(subset=["percentage"])
 
 if not results_data.empty:
 
@@ -346,12 +356,12 @@ if not results_data.empty:
     # ✅ DEDUPE SAFELY
     if "quiz_id" in filtered.columns:
         quiz_level = filtered.drop_duplicates(subset=["quiz_id"])
-        attempts_col = ("quiz_id", "count")
+        attempts_col = ("quiz_id", "nunique")
     else:
         quiz_level = filtered.copy()
         attempts_col = ("percentage", "count")  # old format fallback
 
-    leaderboard = (
+        leaderboard = (
         quiz_level.groupby("email")
         .agg(
             avg_score=("percentage", "mean"),
@@ -362,13 +372,40 @@ if not results_data.empty:
         .reset_index()
     )
 
+    # ✅ ADD DYNAMICS HERE (rank + medals + highlight)
     leaderboard["avg_score"] = leaderboard["avg_score"].round(2)
+    leaderboard["best_score"] = leaderboard["best_score"].round(2)
     leaderboard["username"] = leaderboard["email"].apply(format_username)
 
-    st.dataframe(
-        leaderboard[["username", "avg_score", "attempts", "best_score"]],
-        use_container_width=True
-    )
+    leaderboard["rank"] = leaderboard["avg_score"].rank(method="min", ascending=False).astype(int)
+
+    def medal(rank):
+        if rank == 1:
+            return "🥇"
+        elif rank == 2:
+            return "🥈"
+        elif rank == 3:
+            return "🥉"
+        return ""
+
+    leaderboard["medal"] = leaderboard["rank"].apply(medal)
+
+    # Optional: highlight logged-in user row
+    if email:
+        def highlight_user(row):
+            if row["email"] == email:
+                return ["background-color: #1f6f3d; color: white"] * len(row)
+            return [""] * len(row)
+
+        styled = leaderboard[["rank","medal","username","avg_score","attempts","best_score"]].style.apply(
+            highlight_user, axis=1
+        )
+        st.dataframe(styled, use_container_width=True)
+    else:
+        st.dataframe(
+            leaderboard[["rank","medal","username","avg_score","attempts","best_score"]],
+            use_container_width=True
+        )
 
 # --- Attempts left info ---
 if email:
