@@ -209,55 +209,62 @@ if st.session_state.quiz_finished:
             st.rerun()
 
     with col2:
-        if st.button("Go to Home"):
+        if st.button("View Leaderboard"):
             st.session_state.quiz_finished = False
             st.rerun()
 
 # ---------------- LEADERBOARD (always visible) ----------------
-st.subheader("Leaderboard")
+# ---------------- LEADERBOARD ----------------
+if not st.session_state.quiz_finished:
 
-results_data = load_results()
+    st.subheader("Leaderboard")
 
-if not results_data.empty:
+    results_data = load_results()
 
-    results_data["date"] = pd.to_datetime(results_data["date"])
-    results_data["week"] = results_data["date"].dt.to_period("W-MON")
-    results_data["month"] = results_data["date"].dt.to_period("M")
+    if not results_data.empty:
 
-    leaderboard_type = st.selectbox(
-        "Select leaderboard type",
-        ["All Time", "Weekly", "Monthly"]
-    )
-
-    if leaderboard_type == "Weekly":
-        current_week = pd.Timestamp.now().to_period("W-MON")
-        filtered = results_data[results_data["week"] == current_week]
-
-    elif leaderboard_type == "Monthly":
-        current_month = pd.Timestamp.now().to_period("M")
-        filtered = results_data[results_data["month"] == current_month]
-
-    else:
-        filtered = results_data
-
-    leaderboard = (
-        filtered.groupby("email")
-        .agg(
-            avg_score=("percentage","mean"),
-            attempts=("percentage","count"),
-            best_score=("percentage","max")
+        leaderboard = (
+            results_data.groupby("email")
+            .agg(
+                avg_score=("percentage","mean"),
+                attempts=("percentage","count"),
+                best_score=("percentage","max")
+            )
+            .sort_values("avg_score", ascending=False)
+            .reset_index()
         )
-        .sort_values("avg_score", ascending=False)
-        .reset_index()
-    )
 
-    leaderboard["avg_score"] = leaderboard["avg_score"].round(2)
-    leaderboard["username"] = leaderboard["email"].apply(format_username)
+        leaderboard["avg_score"] = leaderboard["avg_score"].round(2)
+        leaderboard["username"] = leaderboard["email"].apply(format_username)
 
-    st.dataframe(
-        leaderboard[["username","avg_score","attempts","best_score"]],
-        use_container_width=True
-    )
+        # 🏆 Add ranking
+        leaderboard["rank"] = leaderboard["avg_score"].rank(
+            method="min", ascending=False
+        ).astype(int)
+
+        # 🥇 Medal logic
+        def medal(rank):
+            if rank == 1:
+                return "🥇"
+            elif rank == 2:
+                return "🥈"
+            elif rank == 3:
+                return "🥉"
+            return ""
+
+        leaderboard["medal"] = leaderboard["rank"].apply(medal)
+
+        # Highlight current user
+        def highlight_user(row):
+            if row["email"] == email:
+                return ["background-color: #2e7d32; color: white"] * len(row)
+            return [""] * len(row)
+
+        styled = leaderboard[
+            ["rank", "medal", "username", "avg_score", "attempts", "best_score"]
+        ].style.apply(highlight_user, axis=1)
+
+        st.dataframe(styled, use_container_width=True)
 
 # --- Attempts left info ---
 if email:
