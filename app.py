@@ -116,13 +116,20 @@ if email and not email.endswith(ALLOWED_DOMAIN):
 results_data = load_results()
 # ---------------- CHECK ATTEMPTS ----------------
 today = datetime.now().strftime("%Y-%m-%d")
+
 attempts_today = 0
 if email and not results_data.empty and "date" in results_data.columns:
+
     today_rows = results_data[
         (results_data["email"] == email) &
         (results_data["date"].astype(str).str[:10] == today)
     ]
-    attempts_today = today_rows["quiz_id"].nunique()
+
+    # ✅ NEW FORMAT vs OLD FORMAT SAFE CHECK
+    if "quiz_id" in today_rows.columns:
+        attempts_today = today_rows["quiz_id"].nunique()
+    else:
+        attempts_today = len(today_rows)
 
     if attempts_today >= MAX_ATTEMPTS_PER_DAY:
         st.error("You reached max attempts today. Come back tomorrow!")
@@ -339,7 +346,6 @@ if not results_data.empty:
         use_container_width=True
     )
 
-# --- Attempts left info ---
 # --- Attempts left info ---
 if email:
     results_data = load_results()
