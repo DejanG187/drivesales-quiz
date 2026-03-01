@@ -152,6 +152,7 @@ if st.session_state.quiz_started:
                 percentage,
                 datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             ])
+            load_results.clear()
         except gspread.exceptions.APIError as e:
             st.error(f"Failed to save result: {e}")
             st.stop()
