@@ -206,15 +206,15 @@ if st.session_state.get("last_save_msg"):
 
 # ---------------- CHECK ATTEMPTS ----------------
 attempts_today = get_attempts_today(results_data, email, today)
+blocked_today = attempts_today >= MAX_ATTEMPTS_PER_DAY
 
-if attempts_today >= MAX_ATTEMPTS_PER_DAY:
+if blocked_today:
     st.error("You reached max attempts today. Come back tomorrow!")
-    st.stop()
 else:
     st.info(f"Attempts today: {attempts_today}/{MAX_ATTEMPTS_PER_DAY}")
 
 # ---------------- START QUIZ ----------------
-if not st.session_state.quiz_started and not st.session_state.quiz_finished:
+if (not blocked_today) and (not st.session_state.quiz_started) and (not st.session_state.quiz_finished):
     if st.button("Start Quiz"):
         st.session_state.quiz_id = str(uuid.uuid4())
         st.session_state.quiz = questions_data.sample(
@@ -224,7 +224,7 @@ if not st.session_state.quiz_started and not st.session_state.quiz_finished:
         st.rerun()
 
 # ---------------- QUIZ FORM ----------------
-if st.session_state.quiz_started:
+if (not blocked_today) and st.session_state.quiz_started:
     total = len(st.session_state.quiz)
     st.subheader("Quiz In Progress")
     user_answers = []
