@@ -156,17 +156,49 @@ if st.session_state.quiz_started:
         except gspread.exceptions.APIError as e:
             st.error(f"Failed to save result: {e}")
             st.stop()
+        st.session_state.user_answers = user_answers
+        st.session_state.quiz_snapshot = st.session_state.quiz.copy()
 
         st.session_state.quiz_started = False
         st.session_state.quiz_finished = True
         st.session_state.last_score = (score, total, percentage)
-
+        
         st.rerun()
 
 # ---------------- RESULT SCREEN ----------------
 if st.session_state.quiz_finished:
     score, total, percentage = st.session_state.last_score
     st.success(f"Final Score: {score}/{total} ({percentage}%)")
+
+    st.divider()
+    st.subheader("Review Answers")
+
+    quiz = st.session_state.quiz_snapshot
+    user_answers = st.session_state.user_answers
+
+    for i, row in quiz.iterrows():
+        correct_answers = row["correct"].split(",")
+        user_selected = user_answers[i]
+
+        st.markdown(f"**Q{i+1}: {row['question']}**")
+
+        for option_key in ["A", "B", "C", "D"]:
+            option_text = row[option_key]
+            if not option_text:
+                continue
+
+            label = f"{option_key}: {option_text}"
+
+            if option_key in correct_answers and option_key in user_selected:
+                st.success(label + " ✅ (Correct)")
+            elif option_key in correct_answers:
+                st.info(label + " ✔️ (Correct Answer)")
+            elif option_key in user_selected:
+                st.error(label + " ❌ (Your Answer)")
+            else:
+                st.write(label)
+
+        st.divider()
 
     col1, col2 = st.columns(2)
 
@@ -177,7 +209,7 @@ if st.session_state.quiz_finished:
             st.rerun()
 
     with col2:
-        if st.button("View Leaderboard"):
+        if st.button("Go to Home"):
             st.session_state.quiz_finished = False
             st.rerun()
 
