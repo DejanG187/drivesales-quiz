@@ -9,7 +9,7 @@ from google.oauth2.service_account import Credentials
 # ---------------- CONFIG ----------------
 SHEET_ID = "1zDAsJD4uxw01eItCZ6Jeu6PjcQLQJHHkPczFFFnID7A"
 QUESTIONS_TAB = "questions"
-RESULTS_TAB = "result"  # must contain at least these headers: email,score,total,percentage,date
+RESULTS_TAB = "results"  # must contain at least these headers: email,score,total,percentage,date
 ALLOWED_DOMAIN = "@drivesales.com"
 QUESTIONS_PER_QUIZ = 20
 MAX_ATTEMPTS_PER_DAY = 3
