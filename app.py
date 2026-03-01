@@ -340,16 +340,27 @@ if not results_data.empty:
     )
 
 # --- Attempts left info ---
-today_rows = results_data[
-    (results_data["email"] == email) &
-    (results_data["date"].astype(str).str[:10] == today)
-]
+# --- Attempts left info ---
+if email:
+    results_data = load_results()
 
-if "quiz_id" in today_rows.columns:
-    attempts_today = today_rows["quiz_id"].nunique()
-else:
-    attempts_today = len(today_rows)  # old format fallback
-    
+    if not results_data.empty and "date" in results_data.columns:
+        today_rows = results_data[
+            (results_data["email"] == email) &
+            (results_data["date"].astype(str).str[:10] == today)
+        ]
+
+        # New format (quiz_id exists) vs old format fallback
+        if "quiz_id" in today_rows.columns:
+            attempts_today = today_rows["quiz_id"].nunique()
+        else:
+            attempts_today = len(today_rows)
+
+    else:
+        attempts_today = 0
+
+    remaining_attempts = MAX_ATTEMPTS_PER_DAY - attempts_today
+
     if remaining_attempts > 0:
         st.info(f"You have {remaining_attempts} attempt(s) left today.")
     else:
