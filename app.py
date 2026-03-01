@@ -209,12 +209,11 @@ if st.session_state.quiz_finished:
             st.rerun()
 
     with col2:
-        if st.button("View Leaderboard"):
+        if st.button("View"):
             st.session_state.quiz_finished = False
             st.rerun()
 
 # ---------------- LEADERBOARD (always visible) ----------------
-# ---------------- LEADERBOARD ----------------
 if not st.session_state.quiz_finished:
 
     st.subheader("Leaderboard")
