@@ -82,7 +82,8 @@ email = st.text_input("Enter company email")
 if email and not email.endswith(ALLOWED_DOMAIN):
     st.error("Only @drivesales.com emails allowed")
     st.stop()
-
+# ✅ LOAD RESULTS HERE
+results_data = load_results()
 # ---------------- CHECK ATTEMPTS ----------------
 today = datetime.now().strftime("%Y-%m-%d")
 attempts_today = 0
