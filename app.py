@@ -47,7 +47,7 @@ def format_username(email):
 
 # ---------------- CACHED LOAD FUNCTIONS ----------------
 @st.cache_data(ttl=60)
-def load_questions(limit=500):
+def load_questions(limit=90):
     sheet = get_worksheet(SHEET_ID, QUESTIONS_TAB)
     all_rows = sheet.get_all_records()
     filtered_rows = []
@@ -134,27 +134,47 @@ if st.session_state.quiz_started:
         st.warning("Please answer all questions before submitting.")
 
     if submit:
-        # --- Calculate score ---
         score = 0
         for i, row in st.session_state.quiz.iterrows():
             correct_answers = row["correct"].split(",")
             if set(user_answers[i]) == set(correct_answers):
                 score += 1
+
         percentage = round(score / total * 100, 2)
 
-        # --- Save result safely ---
         try:
-            results_sheet.append_row([email, score, total, percentage, datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
+            results_sheet.append_row([
+                email,
+                score,
+                total,
+                percentage,
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            ])
         except gspread.exceptions.APIError as e:
             st.error(f"Failed to save result: {e}")
             st.stop()
 
-        st.success(f"Final Score: {score}/{total} ({percentage}%)")
-        st.balloons()
         st.session_state.quiz_started = False
+        st.session_state.quiz_finished = True
+        st.session_state.last_score = (score, total, percentage)
+        st.rerun()
 
-        # --- Reload leaderboard immediately ---
-        results_data = load_results()
+if st.session_state.quiz_finished:
+    score, total, percentage = st.session_state.last_score
+    st.success(f"Final Score: {score}/{total} ({percentage}%)")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("Try Again"):
+            st.session_state.quiz_started = False
+            st.session_state.quiz_finished = False
+            st.rerun()
+
+    with col2:
+        if st.button("Go to Home"):
+            st.session_state.quiz_finished = False
+            st.rerun()
 
 # ---------------- LEADERBOARD (always visible) ----------------
 st.subheader("Leaderboard")
@@ -163,7 +183,7 @@ if not results_data.empty:
     leaderboard = (
         results_data.groupby("email")
         .agg(avg_score=("percentage","mean"),
-             quizzes=("percentage","count"),
+             attempts=("percentage","count"),
              best_score=("percentage","max"))
         .sort_values("avg_score", ascending=False)
         .reset_index()
