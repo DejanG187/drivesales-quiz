@@ -175,16 +175,18 @@ if not email.endswith(ALLOWED_DOMAIN):
 # ---------------- LOAD RESULTS ONCE PER RERUN ----------------
 if "results_data" not in st.session_state:
     st.session_state.results_data = convert_results_types(load_results_raw())
-def refresh_results_data():
-    # Force a fresh read from Sheets (only when we explicitly call it)
-    load_results_raw.clear()
-    st.session_state.results_data = convert_results_types(load_results_raw())
 results_data = st.session_state.results_data
 
 today = datetime.now().strftime("%Y-%m-%d")
 
 # ✅ Recompute attempts every rerun (fixes Try Again / View Leaderboard refresh)
 results_data = st.session_state.results_data
+# If a previous action requested a refresh, do it now (before attempts/leaderboard)
+if st.session_state.get("needs_refresh", False):
+    refresh_results_data()
+    st.session_state.needs_refresh = False
+
+results_data = st.session_state.results_data  # re-bind after refresh
 attempts_today = get_attempts_today(st.session_state.results_data, email, today)
 
 # ---------------- CHECK ATTEMPTS ----------------
@@ -269,8 +271,12 @@ if st.session_state.quiz_started:
 
         try:
             results_sheet.append_rows(per_question_rows, value_input_option="RAW")
-            refresh_results_data()
-            st.success(f"✅ Saved quiz attempt {quiz_id} at {timestamp}")
+
+            # ✅ request refresh on next run (reliable)
+            st.session_state.needs_refresh = True
+
+            # optional: keep a toast message for next run
+            st.session_state.last_save_msg = f"✅ Saved quiz attempt {quiz_id} at {timestamp}"
         except gspread.exceptions.APIError as e:
             st.error(f"Failed to save result: {e}")
             st.stop()
@@ -324,7 +330,7 @@ if st.session_state.quiz_finished:
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Try Again"):
-            refresh_results_data()  
+            st.session_state.needs_refresh = True
             st.session_state.quiz_started = False
             st.session_state.quiz_finished = False
             st.session_state.pop("quiz", None)
@@ -335,7 +341,7 @@ if st.session_state.quiz_finished:
 
     with col2:
         if st.button("View Leaderboard"):
-            refresh_results_data() 
+            st.session_state.needs_refresh = True
             st.session_state.quiz_finished = False
             st.session_state.pop("quiz", None)
             st.session_state.pop("quiz_snapshot", None)
