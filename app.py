@@ -182,21 +182,50 @@ if st.session_state.quiz_finished:
             st.rerun()
 
 # ---------------- LEADERBOARD (always visible) ----------------
-if not st.session_state.quiz_finished:
-    st.subheader("Leaderboard")
-    results_data = load_results()
-    if not results_data.empty:
-        leaderboard = (
-            results_data.groupby("email")
-            .agg(avg_score=("percentage","mean"),
-                attempts=("percentage","count"),
-                best_score=("percentage","max"))
-            .sort_values("avg_score", ascending=False)
-            .reset_index()
+st.subheader("Leaderboard")
+
+results_data = load_results()
+
+if not results_data.empty:
+
+    results_data["date"] = pd.to_datetime(results_data["date"])
+    results_data["week"] = results_data["date"].dt.to_period("W-MON")
+    results_data["month"] = results_data["date"].dt.to_period("M")
+
+    leaderboard_type = st.selectbox(
+        "Select leaderboard type",
+        ["All Time", "Weekly", "Monthly"]
+    )
+
+    if leaderboard_type == "Weekly":
+        current_week = pd.Timestamp.now().to_period("W-MON")
+        filtered = results_data[results_data["week"] == current_week]
+
+    elif leaderboard_type == "Monthly":
+        current_month = pd.Timestamp.now().to_period("M")
+        filtered = results_data[results_data["month"] == current_month]
+
+    else:
+        filtered = results_data
+
+    leaderboard = (
+        filtered.groupby("email")
+        .agg(
+            avg_score=("percentage","mean"),
+            attempts=("percentage","count"),
+            best_score=("percentage","max")
         )
-        leaderboard["avg_score"] = leaderboard["avg_score"].round(2)
-        leaderboard["username"] = leaderboard["email"].apply(format_username)
-        st.dataframe(leaderboard[["username","avg_score","attempts","best_score"]])
+        .sort_values("avg_score", ascending=False)
+        .reset_index()
+    )
+
+    leaderboard["avg_score"] = leaderboard["avg_score"].round(2)
+    leaderboard["username"] = leaderboard["email"].apply(format_username)
+
+    st.dataframe(
+        leaderboard[["username","avg_score","attempts","best_score"]],
+        use_container_width=True
+    )
 
 # --- Attempts left info ---
 if email:
