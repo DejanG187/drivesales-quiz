@@ -15,6 +15,8 @@ RESULTS_TAB = "results"  # must contain at least these headers: email,score,tota
 ALLOWED_DOMAIN = "@drivesales.com"
 QUESTIONS_PER_QUIZ = 20
 MAX_ATTEMPTS_PER_DAY = 3
+ADMIN_EMAIL = "dejan.g@drivesales.com"
+ADMIN_PASSWORD = "2026"  # better in st.secrets, but using what you requested
 
 REQUIRED_RESULTS_COLS = ["email", "score", "total", "percentage", "date"]
 
@@ -46,6 +48,30 @@ def format_username(email: str) -> str:
         initial = parts[1][0].upper() + "."
         return f"{name} {initial}"
     return local.capitalize()
+
+def clear_results_sheet_keep_header(ws, required_cols):
+    """
+    Clears all data rows but keeps header row.
+    Safe for 1-row-per-quiz schema: email, score, total, percentage, date
+    """
+    try:
+        values = ws.get_all_values()
+        if not values:
+            # Sheet is empty -> write header
+            ws.update("A1", [required_cols])
+            return
+
+        # Ensure header exists and is correct-ish; if row1 is empty, write header
+        header = [h.strip() for h in values[0]] if values else []
+        if not any(header):
+            ws.update("A1", [required_cols])
+
+        # If there are data rows, clear A2:E (enough for your 5 cols)
+        if len(values) > 1:
+            ws.batch_clear(["A2:E"])
+    except gspread.exceptions.APIError as e:
+        st.error(f"Failed to clear results: {e}")
+        st.stop()
 
 def ensure_results_schema(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -436,3 +462,31 @@ if remaining_attempts > 0:
     st.info(f"You have {remaining_attempts} attempt(s) left today.")
 else:
     st.info("You reached the maximum attempts for today. Come back tomorrow!")
+
+# --- Clean leaderboard ---
+
+st.divider()
+with st.expander("Admin (Clear leaderboard)", expanded=False):
+    admin_email = st.text_input("Admin email", key="admin_email")
+    admin_password = st.text_input("Admin password", type="password", key="admin_password")
+
+    if admin_email == ADMIN_EMAIL and admin_password == ADMIN_PASSWORD:
+        st.warning("This will delete ALL results (except the header).")
+
+        confirm = st.checkbox("I understand — permanently clear leaderboard", key="admin_confirm")
+
+        if st.button("Clear Leaderboard", disabled=not confirm, key="admin_clear_btn"):
+            clear_results_sheet_keep_header(results_sheet, REQUIRED_RESULTS_COLS)
+
+            # refresh in-memory + cached results immediately (so UI updates now)
+            if "results_data" in st.session_state:
+                st.session_state.results_data = pd.DataFrame(columns=REQUIRED_RESULTS_COLS)
+            try:
+                load_results_raw.clear()
+            except Exception:
+                pass
+
+            st.success("Leaderboard cleared.")
+            st.rerun()
+    else:
+        st.info("Enter admin credentials to unlock.")
